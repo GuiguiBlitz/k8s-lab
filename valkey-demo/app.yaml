@@ -1,0 +1,43 @@
+# Redis Commander — a web UI that connects to Valkey (Redis-compatible)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis-commander
+  namespace: valkey-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis-commander
+  template:
+    metadata:
+      labels:
+        app: redis-commander
+    spec:
+      containers:
+        - name: redis-commander
+          image: rediscommander/redis-commander:latest
+          env:
+            - name: REDIS_HOSTS
+              value: "valkey:valkey:6379"
+          ports:
+            - containerPort: 8081
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-commander
+  namespace: valkey-demo
+spec:
+  selector:
+    app: redis-commander
+  ports:
+    - port: 80
+      targetPort: 8081

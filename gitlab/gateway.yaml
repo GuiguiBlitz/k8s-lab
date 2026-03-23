@@ -1,0 +1,62 @@
+# NodePort service type — no cloud LB on local k0s
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyProxy
+metadata:
+  name: nodeport-proxy
+  namespace: gitlab
+spec:
+  provider:
+    type: Kubernetes
+    kubernetes:
+      envoyService:
+        type: NodePort
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: gitlab-gateway
+  namespace: gitlab
+spec:
+  gatewayClassName: eg
+  infrastructure:
+    parametersRef:
+      group: gateway.envoyproxy.io
+      kind: EnvoyProxy
+      name: nodeport-proxy
+  listeners:
+    - name: gitlab
+      protocol: HTTP
+      port: 80
+    - name: adminer
+      protocol: HTTP
+      port: 8080
+---
+# GitLab web UI — port 80, traffic to Workhorse (8181)
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: gitlab
+  namespace: gitlab
+spec:
+  parentRefs:
+    - name: gitlab-gateway
+      sectionName: gitlab
+  rules:
+    - backendRefs:
+        - name: gitlab-webservice-default
+          port: 8181
+---
+# Adminer DB UI — port 8080
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: adminer
+  namespace: gitlab
+spec:
+  parentRefs:
+    - name: gitlab-gateway
+      sectionName: adminer
+  rules:
+    - backendRefs:
+        - name: adminer
+          port: 80

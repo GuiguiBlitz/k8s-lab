@@ -1,0 +1,55 @@
+# Minimal GitLab CE for a local k0s lab.
+# Install with: helm upgrade --install gitlab gitlab/gitlab -n gitlab -f gitlab/gitlab-values.yaml --timeout 600s
+
+global:
+  edition: ce
+
+  hosts:
+    domain: local
+    https: false
+    gitlab:
+      name: gitlab.local
+
+  ingress:
+    enabled: false
+    configureCertmanager: false
+
+  psql:
+    host: postgres
+    port: 5432
+    database: gitlabhq_production
+    username: gitlab
+    password:
+      secret: gitlab-postgres-password
+      key: password
+
+# Disable components not needed in a local lab
+certmanager-issuer:
+  email: lab@example.com
+
+nginx-ingress:
+  enabled: false
+
+postgresql:
+  install: false
+
+gitlab-runner:
+  install: false
+
+registry:
+  enabled: false
+
+prometheus:
+  install: false
+
+# Single replicas to save resources
+gitlab:
+  webservice:
+    minReplicas: 1
+    maxReplicas: 1
+  sidekiq:
+    minReplicas: 1
+    maxReplicas: 1
+  gitlab-shell:
+    minReplicas: 1
+    maxReplicas: 1
