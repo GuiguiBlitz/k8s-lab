@@ -18,6 +18,15 @@ spec:
           - resources:
               kinds:
                 - Pod
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - kyverno
+                - envoy-gateway-system
+                - gateway
+                - policy-reporter
       mutate:
         patchStrategicMerge:
           spec:

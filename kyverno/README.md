@@ -257,12 +257,18 @@ helm install policy-reporter policy-reporter/policy-reporter \
   --set plugin.kyverno.enabled=true
 ```
 
-Access the UI via port-forward (no gateway setup needed):
+Access the UI via the shared Gateway (port 9090):
 ```bash
-kubectl port-forward svc/policy-reporter-ui 8082:8080 -n policy-reporter
+# Find the NodePort for port 9090
+kubectl get svc -n envoy-gateway-system | grep shared-gateway
+# Access at http://<node-ip>:<nodeport>
 ```
 
-Open `http://localhost:8082` in your browser.
+Apply the companion network policies and HTTPRoute immediately after install:
+```bash
+kubectl apply -f kyverno/policy-reporter-netpol.yaml
+kubectl apply -f kyverno/policy-reporter-route.yaml
+```
 
 ### With kubectl (quick checks)
 

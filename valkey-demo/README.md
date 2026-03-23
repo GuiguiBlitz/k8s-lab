@@ -15,14 +15,11 @@ kubectl get pods -n valkey-demo -w
 
 Find the access URL:
 ```bash
-# Node IP — shown in the ADDRESS column
-kubectl get gateway -n valkey-demo valkey-demo-gateway
-
-# NodePort — shown in the PORT(S) column
-kubectl get svc -n envoy-gateway-system | grep valkey
+# The shared Gateway handles all lab services — find the NodePort for port 8081 (valkey listener)
+kubectl get svc -n envoy-gateway-system | grep shared-gateway
 ```
 
-Open `http://<NODE-IP>:<NODEPORT>/` in your browser. You should see the Redis Commander UI connected to Valkey.
+The `PORT(S)` column shows `8081:<NODEPORT>/TCP` — open `http://<NODE-IP>:<NODEPORT>/` in your browser.
 
 **Tear down:**
 ```bash
@@ -37,7 +34,7 @@ kubectl delete -f valkey-demo/
 | `00-namespace.yaml` | `valkey-demo` namespace |
 | `valkey.yaml` | Valkey `Deployment` + `Service` (port 6379) |
 | `app.yaml` | Redis Commander `Deployment` + `Service` |
-| `gateway.yaml` | `EnvoyProxy` (NodePort) + `Gateway` + `HTTPRoute` |
+| `gateway.yaml` | `HTTPRoute` pointing to the shared Gateway in the `gateway` namespace |
 
 </details>
 

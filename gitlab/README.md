@@ -35,7 +35,7 @@ kubectl get pods -n gitlab -w
 
 All pods should eventually show `Running` or `Completed`.
 
-### 3 — Apply the Gateway and HTTPRoutes
+### 3 — Apply the HTTPRoutes
 
 ```bash
 kubectl apply -f gitlab/gateway.yaml
@@ -48,20 +48,19 @@ kubectl get secret gitlab-gitlab-initial-root-password \
   -n gitlab -o jsonpath='{.data.password}' | base64 -d && echo
 ```
 
-### 5 — Find the node IP and NodePorts
+### 5 — Find the NodePorts
+
+The shared Gateway (in the `gateway` namespace) handles all lab services:
 
 ```bash
-# Node IP — ADDRESS column
-kubectl get gateway gitlab-gateway -n gitlab
-
-# NodePorts — PORT(S) column shows 80:<GITLAB-PORT>/TCP,8080:<ADMINER-PORT>/TCP
-kubectl get svc -n envoy-gateway-system | grep gitlab
+# PORT(S) column: 80:<GITLAB-PORT>/TCP,8080:<ADMINER-PORT>/TCP,...
+kubectl get svc -n envoy-gateway-system | grep shared-gateway
 ```
 
 Example output:
 ```
-envoy-gitlab-gitlab-gateway-xxx   NodePort   ...   80:31051/TCP,8080:31118/TCP
-#                                                      ^GitLab        ^Adminer
+envoy-gateway-shared-gateway-xxx   NodePort   ...   80:32672/TCP,8080:31785/TCP,8081:31407/TCP,9090:32599/TCP
+#                                                      ^GitLab       ^Adminer      ^Valkey       ^PolicyReporter
 ```
 
 ### 6 — Access
@@ -88,7 +87,7 @@ kubectl delete -f gitlab/
 | `postgres.yaml` | PostgreSQL 15 `Deployment` + `Service` + `PVC` + password `Secret` |
 | `adminer.yaml` | Adminer `Deployment` + `Service` |
 | `gitlab-values.yaml` | Base Helm values — external PostgreSQL, no nginx-ingress, no cert-manager, no registry |
-| `gateway.yaml` | `EnvoyProxy` (NodePort) + `Gateway` + `HTTPRoute` for GitLab and Adminer |
+| `gateway.yaml` | `HTTPRoute` resources for GitLab and Adminer pointing to the shared Gateway |
 
 </details>
 

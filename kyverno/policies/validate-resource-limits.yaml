@@ -21,6 +21,15 @@ spec:
           - resources:
               kinds:
                 - Pod
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - kyverno
+                - envoy-gateway-system
+                - gateway
+                - policy-reporter
       validate:
         message: "Resource limits are too high. Max allowed: 2 CPU / 4Gi RAM."
         foreach:

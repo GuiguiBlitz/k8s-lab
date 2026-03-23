@@ -1,0 +1,66 @@
+---
+# Allow DNS egress for all pods in policy-reporter namespace
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns-egress
+  namespace: policy-reporter
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+---
+# Allow all pods to reach the Kubernetes API server (for PolicyReport watches)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-k8s-api-egress
+  namespace: policy-reporter
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - ports:
+        - port: 6443
+---
+# Allow all intra-namespace traffic (UI -> backend, UI -> plugin, etc.)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-intra-namespace
+  namespace: policy-reporter
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: policy-reporter
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: policy-reporter
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: policy-reporter
+---
+# Allow port-forward / external access to the UI
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-to-ui
+  namespace: policy-reporter
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: policy-reporter-ui
+  policyTypes: [Ingress]
+  ingress:
+    - ports:
+        - port: 8080
