@@ -1,0 +1,20 @@
+# Pod Security Standards — applied via namespace labels (native Kubernetes, no Kyverno needed).
+# enforce: baseline — blocks pods that violate the baseline PSS profile at admission
+# warn: restricted   — prints a warning for pods that don't meet the stricter restricted profile
+#
+# This file is an EXAMPLE. Apply these labels to your own namespaces:
+#   kubectl label namespace <your-ns> \
+#     pod-security.kubernetes.io/enforce=baseline \
+#     pod-security.kubernetes.io/warn=restricted
+#
+# PSS profiles:
+#   privileged — no restrictions (default if unlabelled)
+#   baseline   — prevents known privilege escalations (hostPID, hostNetwork, privileged containers…)
+#   restricted — heavily restricted, follows current pod hardening best practices
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: pss-example
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/warn: restricted

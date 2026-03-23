@@ -1,0 +1,36 @@
+# Validate (Enforce) — hard cap on container resource limits.
+# Blocks admission of any pod with a container requesting more than 2 CPU or 4Gi RAM.
+# This is the safety net above the mutate-default-resources policy.
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: validate-resource-limits
+  annotations:
+    policies.kyverno.io/title: Enforce maximum resource limits
+    policies.kyverno.io/description: >-
+      Blocks any container that requests more than 2 CPU or 4Gi of memory.
+      Works in tandem with mutate-default-resources: the mutation adds defaults,
+      this policy rejects anything that explicitly exceeds the hard cap.
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: check-hard-limits
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: "Resource limits are too high. Max allowed: 2 CPU / 4Gi RAM."
+        foreach:
+          - list: "request.object.spec.containers"
+            deny:
+              conditions:
+                any:
+                  - key: "{{ element.resources.limits.cpu || '0' }}"
+                    operator: GreaterThan
+                    value: "2000m"
+                  - key: "{{ element.resources.limits.memory || '0' }}"
+                    operator: GreaterThan
+                    value: "4Gi"

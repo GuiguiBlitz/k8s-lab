@@ -48,14 +48,24 @@ k8s-lab/
 │   ├── gateway.yaml
 │   └── labs/
 │       └── netpol.yaml   # Applied in Lab 4 only
-└── gitlab/               # Demo 2: GitLab CE + PostgreSQL + Adminer
-    ├── 00-namespace.yaml
-    ├── postgres.yaml
-    ├── adminer.yaml
-    ├── gateway.yaml
-    ├── gitlab-values.yaml          # Base Helm values
-    └── labs/
-        └── netpol-values.yaml      # Add-on values for Lab 3 (network policies)
+├── gitlab/               # Demo 2: GitLab CE + PostgreSQL + Adminer
+│   ├── 00-namespace.yaml
+│   ├── postgres.yaml
+│   ├── adminer.yaml
+│   ├── gateway.yaml
+│   ├── gitlab-values.yaml          # Base Helm values
+│   └── labs/
+│       └── netpol-values.yaml      # Add-on values for Lab 3 (network policies)
+└── kyverno/              # Lab 6: policy enforcement
+    └── policies/
+        ├── mutate-default-resources.yaml      # Mutate — inject default requests/limits (Enforce)
+        ├── validate-resource-limits.yaml      # Validate — hard cap 2CPU/4Gi (Enforce)
+        ├── validate-block-nodeport.yaml       # Validate — no NodePort services (Audit)
+        ├── validate-no-latest-tag.yaml        # Validate — no :latest image tag (Audit)
+        ├── validate-allowed-registries.yaml   # Validate — approved registries only (Audit)
+        ├── validate-require-probes.yaml       # Validate — require liveness+readiness (Audit)
+        ├── generate-default-deny-netpol.yaml  # Generate — default-deny NetworkPolicy on ns create
+        └── pss-example-namespace.yaml         # Example namespace with PSS labels (baseline/restricted)
 ```
 
 ## Demos

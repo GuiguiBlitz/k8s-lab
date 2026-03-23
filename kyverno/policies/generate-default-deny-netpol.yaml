@@ -1,0 +1,46 @@
+# Generate — automatically create a default-deny NetworkPolicy in every new namespace.
+# This ensures that no namespace starts with open access: teams must explicitly
+# define NetworkPolicies to allow traffic rather than having to remember to lock it down.
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: generate-default-deny-networkpolicy
+  annotations:
+    policies.kyverno.io/title: Generate default-deny NetworkPolicy on namespace creation
+    policies.kyverno.io/description: >-
+      When a new namespace is created, automatically generate a default-deny-all
+      NetworkPolicy in that namespace. This enforces a zero-trust posture by default:
+      all ingress and egress is blocked until an explicit NetworkPolicy allows it.
+spec:
+  rules:
+    - name: default-deny-networkpolicy
+      match:
+        any:
+          - resources:
+              kinds:
+                - Namespace
+      exclude:
+        any:
+          - resources:
+              names:
+                - kube-system
+                - kube-public
+                - kube-node-lease
+                - envoy-gateway-system
+                - local-path-storage
+                - kyverno
+      generate:
+        apiVersion: networking.k8s.io/v1
+        kind: NetworkPolicy
+        name: default-deny-all
+        namespace: "{{request.object.metadata.name}}"
+        synchronize: true
+        data:
+          metadata:
+            labels:
+              generated-by: kyverno
+          spec:
+            podSelector: {}
+            policyTypes:
+              - Ingress
+              - Egress

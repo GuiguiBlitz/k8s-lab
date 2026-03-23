@@ -1,0 +1,36 @@
+# Validate (Audit) — block NodePort services to force use of the managed Gateway API.
+# Set to Audit so violations are reported without blocking Envoy Gateway's own NodePort services.
+# Switch to Enforce once your Gateway infrastructure is fully managed.
+#
+# The envoy-gateway-system namespace is excluded because Envoy Gateway
+# creates NodePort services there programmatically to expose gateways.
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: validate-block-nodeport
+  annotations:
+    policies.kyverno.io/title: Block NodePort services
+    policies.kyverno.io/description: >-
+      Services of type NodePort expose cluster internals directly on the node.
+      All external traffic must go through an HTTPRoute or TLSRoute on a managed Gateway.
+spec:
+  validationFailureAction: Audit
+  background: true
+  rules:
+    - name: block-nodeport
+      match:
+        any:
+          - resources:
+              kinds:
+                - Service
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - envoy-gateway-system
+                - kube-system
+      validate:
+        message: "NodePort services are not allowed. Expose your app via an HTTPRoute on a managed Gateway."
+        pattern:
+          spec:
+            type: "!NodePort"

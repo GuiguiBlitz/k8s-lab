@@ -1,0 +1,52 @@
+# Validate (Audit) — only allow images from approved registries.
+# Adapt the registry list to match your organisation's approved sources.
+# Set to Audit so the lab demos are not broken; switch to Enforce in production.
+#
+# Lab-approved registries (adjust for your org):
+#   docker.io      — Docker Hub (used by lab demos)
+#   ghcr.io        — GitHub Container Registry
+#   registry.k8s.io — Official Kubernetes images
+#   quay.io        — Red Hat Quay
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: validate-allowed-registries
+  annotations:
+    policies.kyverno.io/title: Restrict image registries
+    policies.kyverno.io/description: >-
+      Only images from approved registries are allowed. This prevents accidental
+      or malicious use of unknown third-party images.
+spec:
+  validationFailureAction: Audit
+  background: true
+  rules:
+    - name: allowed-registries
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: >-
+          Images must come from an approved registry:
+          docker.io, ghcr.io, registry.k8s.io, quay.io.
+        foreach:
+          - list: "request.object.spec.containers"
+            deny:
+              conditions:
+                all:
+                  - key: "{{ element.image }}"
+                    operator: NotEquals
+                    value: "docker.io/*"
+                  - key: "{{ element.image }}"
+                    operator: NotEquals
+                    value: "*/docker.io/*"
+                  - key: "{{ element.image }}"
+                    operator: NotEquals
+                    value: "ghcr.io/*"
+                  - key: "{{ element.image }}"
+                    operator: NotEquals
+                    value: "registry.k8s.io/*"
+                  - key: "{{ element.image }}"
+                    operator: NotEquals
+                    value: "quay.io/*"

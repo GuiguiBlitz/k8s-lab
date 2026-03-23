@@ -1,0 +1,39 @@
+# Validate (Audit) — forbid the "latest" image tag.
+# Using "latest" makes deployments non-reproducible: two identical manifests may
+# pull different code. A specific tag (e.g. v1.2.3 or a digest) is required.
+# Set to Audit initially so existing workloads are flagged in the report, not blocked.
+# Switch to Enforce before promoting to production.
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: validate-no-latest-tag
+  annotations:
+    policies.kyverno.io/title: Disallow latest image tag
+    policies.kyverno.io/description: >-
+      Blocks pods that use the implicit or explicit "latest" tag on any container image.
+      Use a pinned version tag or a digest (@sha256:...) instead.
+spec:
+  validationFailureAction: Audit
+  background: true
+  rules:
+    - name: require-image-tag
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: >-
+          The image tag 'latest' is not allowed. Use a specific version tag (e.g. v1.2.3)
+          or a digest (@sha256:...).
+        foreach:
+          - list: "request.object.spec.containers"
+            deny:
+              conditions:
+                any:
+                  - key: "{{ element.image }}"
+                    operator: Equals
+                    value: "*:latest"
+                  - key: "{{ element.image }}"
+                    operator: NotEquals
+                    value: "*:*"

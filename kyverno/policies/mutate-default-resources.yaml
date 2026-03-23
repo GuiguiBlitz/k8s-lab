@@ -1,0 +1,32 @@
+# Mutate — inject default requests and limits if the user did not define them.
+# Uses the strategic merge patch "+" operator: only sets the value if the key is absent.
+# This runs silently at admission — developers never see it unless they inspect the live pod spec.
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: mutate-default-resources
+  annotations:
+    policies.kyverno.io/title: Inject default resource requests and limits
+    policies.kyverno.io/description: >-
+      If a container does not define CPU/memory requests or limits, inject
+      sensible defaults so the scheduler can place it and the node is protected.
+spec:
+  rules:
+    - name: set-defaults
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      mutate:
+        patchStrategicMerge:
+          spec:
+            containers:
+              - (name): "*"
+                resources:
+                  requests:
+                    +(cpu): "100m"
+                    +(memory): "128Mi"
+                  limits:
+                    +(cpu): "500m"
+                    +(memory): "256Mi"

@@ -1,0 +1,40 @@
+# Validate (Audit) — require liveness and readiness probes on all containers.
+# Without probes, Kubernetes cannot detect unhealthy pods and will not restart them,
+# and the Service will route traffic to pods that are not yet ready.
+# Set to Audit so existing workloads are reported before you fix them.
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: validate-require-probes
+  annotations:
+    policies.kyverno.io/title: Require liveness and readiness probes
+    policies.kyverno.io/description: >-
+      All containers must define both a livenessProbe and a readinessProbe.
+      This guarantees that Kubernetes can detect and recover from unhealthy pods
+      and only routes traffic to pods that are fully initialised.
+spec:
+  validationFailureAction: Audit
+  background: true
+  rules:
+    - name: require-probes
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - envoy-gateway-system
+                - local-path-storage
+      validate:
+        message: "All containers must define a livenessProbe and a readinessProbe."
+        pattern:
+          spec:
+            containers:
+              - livenessProbe:
+                  "?*": "?*"
+                readinessProbe:
+                  "?*": "?*"
