@@ -12,6 +12,9 @@ spec:
     metadata:
       labels:
         app: valkey
+        role: cache
+        part-of: valkey-demo
+        tier: backend
     spec:
       containers:
         - name: valkey

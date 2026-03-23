@@ -1,0 +1,27 @@
+# Add-on values for Lab 3: enable GitLab built-in network policies.
+# Apply on top of gitlab-values.yaml:
+#   helm upgrade gitlab gitlab/gitlab -n gitlab \
+#     -f gitlab/gitlab-values.yaml \
+#     -f gitlab/labs/netpol-values.yaml \
+#     --timeout 600s
+
+global:
+  networkPolicy:
+    enabled: true
+    egress:
+      enabled: true
+      rules:
+        # Allow traffic to our external PostgreSQL pod
+        - to:
+            - podSelector:
+                matchLabels:
+                  app: postgres
+          ports:
+            - port: 5432
+              protocol: TCP
+        # Allow DNS
+        - ports:
+            - port: 53
+              protocol: UDP
+            - port: 53
+              protocol: TCP

@@ -1,0 +1,107 @@
+# Network policies for valkey-demo
+#
+# Traffic model:
+#   internet → envoy (envoy-gateway-system) → redis-commander → valkey
+#
+# Rules:
+#   1. Default deny-all ingress for the whole namespace
+#   2. Allow envoy gateway pods → redis-commander:8081
+#   3. Allow redis-commander → valkey:6379
+#   4. Allow DNS egress from all pods (required for service discovery)
+
+# 1. Default deny-all ingress
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: valkey-demo
+spec:
+  podSelector: {}   # matches all pods in the namespace
+  policyTypes:
+    - Ingress
+---
+# 2. Allow the Envoy Gateway proxy pods → redis-commander on port 8081
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-gateway-to-redis-commander
+  namespace: valkey-demo
+spec:
+  podSelector:
+    matchLabels:
+      app: redis-commander
+      role: ui
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: envoy-gateway-system
+      ports:
+        - port: 8081
+          protocol: TCP
+---
+# 3. Allow redis-commander → valkey on port 6379 (and nothing else)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-redis-commander-to-valkey
+  namespace: valkey-demo
+spec:
+  podSelector:
+    matchLabels:
+      app: valkey
+      role: cache
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: redis-commander
+              role: ui
+      ports:
+        - port: 6379
+          protocol: TCP
+---
+# 4. Allow DNS egress so pods can resolve service names
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns-egress
+  namespace: valkey-demo
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+---
+# 5. Allow redis-commander to make outbound connections to valkey:6379
+#    (needed because the dns-egress policy activates Egress enforcement on all pods)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-redis-commander-egress-to-valkey
+  namespace: valkey-demo
+spec:
+  podSelector:
+    matchLabels:
+      app: redis-commander
+      role: ui
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: valkey
+              role: cache
+      ports:
+        - port: 6379
+          protocol: TCP

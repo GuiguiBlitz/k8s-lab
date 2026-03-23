@@ -24,9 +24,21 @@ brew install kubectl helm cilium-cli kyverno fluxcd/tap/flux k9s
 make
 ```
 
-This installs k0s, starts the controller, writes `~/.kube/config`, installs the `local-path` StorageClass, and sets up Envoy Gateway with the `eg` GatewayClass.
+This single command:
+1. Installs the k0s binary
+2. Starts a single-node controller
+3. Writes `~/.kube/config`
+4. Installs the `local-path` StorageClass (needed for PVCs)
+5. Installs Envoy Gateway and creates the `eg` GatewayClass
 
 > **Behind a proxy?** Edit `~/.kube/config` and change the server IP to `localhost`.
+
+Verify everything is ready:
+```bash
+kubectl get nodes
+kubectl get storageclass
+kubectl get gatewayclass
+```
 
 ---
 
@@ -34,28 +46,33 @@ This installs k0s, starts the controller, writes `~/.kube/config`, installs the 
 
 A [Valkey](https://valkey.io/) (Redis-compatible) store and a Redis Commander web UI, exposed via Gateway API.
 
-**Apply:**
 ```bash
 kubectl apply -f valkey-demo/
 ```
 
-**Find the access URL:**
+Wait for pods to be ready:
 ```bash
-# Node IP is shown in the ADDRESS column
-kubectl get gateway -n valkey-demo valkey-demo-gateway
-
-# Find the NodePort assigned to this gateway's envoy service
-kubectl get svc -n envoy-gateway-system
+kubectl get pods -n valkey-demo -w
 ```
 
-Open `http://<NODE-IP>:<NODEPORT>/` in your browser.
+Find the access URL:
+```bash
+# Node IP — shown in the ADDRESS column
+kubectl get gateway -n valkey-demo valkey-demo-gateway
+
+# NodePort — shown in the PORT(S) column
+kubectl get svc -n envoy-gateway-system | grep valkey
+```
+
+Open `http://<NODE-IP>:<NODEPORT>/` in your browser. You should see the Redis Commander UI connected to Valkey.
 
 **Tear down:**
 ```bash
 kubectl delete -f valkey-demo/
 ```
 
-**What's in the folder:**
+<details>
+<summary>What's in valkey-demo/</summary>
 
 | File | Contents |
 |---|---|
@@ -64,13 +81,13 @@ kubectl delete -f valkey-demo/
 | `app.yaml` | Redis Commander `Deployment` + `Service` |
 | `gateway.yaml` | `EnvoyProxy` (NodePort) + `Gateway` + `HTTPRoute` |
 
+</details>
+
 ---
 
 ## Demo 2 — GitLab CE + PostgreSQL + Adminer
 
-GitLab CE via the official Helm chart, backed by a dedicated PostgreSQL instance. Adminer provides a web UI for the database. Both are exposed via Gateway API.
-
-> **Prerequisite:** `make install-storage` must have been run (GitLab needs PVCs).
+GitLab CE via the official Helm chart, backed by a dedicated PostgreSQL instance. Adminer provides a web UI for the database. Both are exposed via Gateway API using port-based routing.
 
 ### 2a — Apply namespace, PostgreSQL and Adminer
 
@@ -78,6 +95,11 @@ GitLab CE via the official Helm chart, backed by a dedicated PostgreSQL instance
 kubectl apply -f gitlab/00-namespace.yaml
 kubectl apply -f gitlab/postgres.yaml
 kubectl apply -f gitlab/adminer.yaml
+```
+
+Verify PostgreSQL starts cleanly:
+```bash
+kubectl get pods -n gitlab -w
 ```
 
 ### 2b — Install GitLab via Helm
@@ -91,7 +113,12 @@ helm upgrade --install gitlab gitlab/gitlab \
   --timeout 600s
 ```
 
-> GitLab takes several minutes to start. Watch progress with `kubectl get pods -n gitlab -w`.
+GitLab takes several minutes to fully start. Watch progress:
+```bash
+kubectl get pods -n gitlab -w
+```
+
+All pods should eventually show `Running` or `Completed`.
 
 ### 2c — Apply the Gateway and HTTPRoutes
 
@@ -109,10 +136,10 @@ kubectl get secret gitlab-gitlab-initial-root-password \
 ### 2e — Find the node IP and NodePorts
 
 ```bash
-# Node IP (ADDRESS column)
+# Node IP — ADDRESS column
 kubectl get gateway gitlab-gateway -n gitlab
 
-# NodePorts — look for the PORT(S) column, format is 80:<GITLAB-PORT>/TCP,8080:<ADMINER-PORT>/TCP
+# NodePorts — PORT(S) column shows 80:<GITLAB-PORT>/TCP,8080:<ADMINER-PORT>/TCP
 kubectl get svc -n envoy-gateway-system | grep gitlab
 ```
 
@@ -126,10 +153,10 @@ envoy-gitlab-gitlab-gateway-xxx   NodePort   ...   80:31051/TCP,8080:31118/TCP
 
 No `/etc/hosts` changes needed — routing is port-based:
 
-| Service | Port | URL | Credentials |
-|---|---|---|---|
-| GitLab | 80 NodePort | `http://<NODE-IP>:<GITLAB-PORT>` | `root` / printed password |
-| Adminer | 8080 NodePort | `http://<NODE-IP>:<ADMINER-PORT>` | server: `postgres`, user: `gitlab`, password: `gitlab-lab-password`, db: `gitlabhq_production` |
+| Service | URL | Credentials |
+|---|---|---|
+| GitLab | `http://<NODE-IP>:<GITLAB-PORT>` | `root` / password from step 2d |
+| Adminer | `http://<NODE-IP>:<ADMINER-PORT>` | server: `postgres`, user: `gitlab`, password: `gitlab-lab-password`, db: `gitlabhq_production` |
 
 **Tear down:**
 ```bash
@@ -137,12 +164,161 @@ helm uninstall gitlab -n gitlab
 kubectl delete -f gitlab/
 ```
 
-**What's in the folder:**
+<details>
+<summary>What's in gitlab/</summary>
 
 | File | Contents |
 |---|---|
 | `00-namespace.yaml` | `gitlab` namespace |
 | `postgres.yaml` | PostgreSQL 15 `Deployment` + `Service` + `PVC` + password `Secret` |
 | `adminer.yaml` | Adminer `Deployment` + `Service` |
-| `gitlab-values.yaml` | Helm values — external PostgreSQL, no nginx-ingress, no cert-manager, no registry |
+| `gitlab-values.yaml` | Base Helm values — external PostgreSQL, no nginx-ingress, no cert-manager, no registry |
 | `gateway.yaml` | `EnvoyProxy` (NodePort) + `Gateway` + `HTTPRoute` for GitLab and Adminer |
+
+</details>
+
+---
+
+## Lab 3 — Network Policies: GitLab (built-in via Helm)
+
+The GitLab Helm chart includes network policies for every component. They are not active by default — `gitlab/labs/netpol-values.yaml` adds the required configuration on top of the base values.
+
+Enable them with a Helm upgrade:
+
+```bash
+helm upgrade gitlab gitlab/gitlab \
+  -n gitlab \
+  -f gitlab/gitlab-values.yaml \
+  -f gitlab/labs/netpol-values.yaml \
+  --timeout 600s
+```
+
+### Verify the policies were created
+
+```bash
+kubectl get networkpolicy -n gitlab
+```
+
+You will see one policy per component (webservice, sidekiq, gitaly, kas, etc.).
+
+### Inspect a policy
+
+```bash
+kubectl describe networkpolicy gitlab-webservice-default -n gitlab
+```
+
+Read the `Ingress` and `Egress` sections — they show exactly which ports and pod selectors are allowed. Notice that every component only permits the traffic it strictly needs.
+
+---
+
+## Lab 4 — Network Policies: Valkey (hand-crafted)
+
+In Demo 1 the Valkey namespace has no network policies — any pod in the cluster can reach Valkey. This lab locks it down using hand-written policies based on pod labels.
+
+### Understand the labels
+
+We added extra labels to both deployments so our policies can be precise and readable:
+
+| Pod | Key labels |
+|---|---|
+| `valkey` | `app=valkey`, `role=cache`, `tier=backend` |
+| `redis-commander` | `app=redis-commander`, `role=ui`, `tier=frontend` |
+
+Verify them on the running pods:
+```bash
+kubectl get pods -n valkey-demo --show-labels
+```
+
+### Traffic model
+
+```
+Browser → Envoy (envoy-gateway-system ns) → redis-commander:8081 → valkey:6379
+```
+
+The policies enforce exactly this path and nothing else.
+
+### Apply the network policies
+
+```bash
+kubectl apply -f valkey-demo/labs/netpol.yaml
+```
+
+### What was applied
+
+```bash
+kubectl get networkpolicy -n valkey-demo
+```
+
+| Policy | Effect |
+|---|---|
+| `default-deny-ingress` | Blocks all ingress to every pod in the namespace by default |
+| `allow-gateway-to-redis-commander` | Allows Envoy pods (from `envoy-gateway-system`) into `redis-commander` on port 8081 |
+| `allow-redis-commander-to-valkey` | Allows `redis-commander` into `valkey` on port 6379 (ingress side on valkey) |
+| `allow-dns-egress` | Allows all pods to reach DNS on port 53 so service names resolve |
+| `allow-redis-commander-egress-to-valkey` | Allows `redis-commander` to dial out to `valkey:6379` (egress side) |
+
+> **Why two policies for the same connection?**
+> NetworkPolicy is directional. The ingress rule on `valkey` permits the connection arriving. But as soon as any `Egress` policy exists in the namespace (the DNS one), Kubernetes enforces egress on *all* pods — so `redis-commander` also needs an explicit egress allowance, otherwise its outbound traffic to Valkey is silently dropped.
+
+Verify Redis Commander still works in your browser after applying the policies.
+
+---
+
+## Lab 5 — Testing and monitoring network policies
+
+### View all policies in the cluster
+
+```bash
+kubectl get networkpolicy -A
+```
+
+### Inspect a specific policy
+
+```bash
+kubectl describe networkpolicy allow-redis-commander-to-valkey -n valkey-demo
+```
+
+### Test: allowed connection (should succeed)
+
+Spawn a temporary pod with the same labels as redis-commander and try to reach Valkey:
+
+```bash
+kubectl run test-allowed -n valkey-demo --rm -it --restart=Never \
+  --labels="app=redis-commander,role=ui" \
+  --image=nicolaka/netshoot -- \
+  nc -zv valkey 6379
+```
+
+Expected: `valkey [172.x.x.x] 6379 (redis) open`
+
+### Test: blocked connection (should fail)
+
+Spawn a pod with no matching labels — it must not reach Valkey:
+
+```bash
+kubectl run test-blocked -n valkey-demo --rm -it --restart=Never \
+  --image=nicolaka/netshoot -- \
+  nc -zv -w3 valkey 6379
+```
+
+Expected: connection times out after 3 seconds.
+
+### Test: blocked cross-namespace connection
+
+Try from outside the namespace entirely (default namespace):
+
+```bash
+kubectl run test-cross-ns --rm -it --restart=Never \
+  --image=nicolaka/netshoot -- \
+  nc -zv -w3 valkey.valkey-demo.svc.cluster.local 6379
+```
+
+Expected: connection times out.
+
+### Monitor events
+
+```bash
+kubectl get events -n valkey-demo -w
+```
+
+> **Note:** Dropped packet visibility at the event level depends on the CNI. k0s ships with kube-router which enforces NetworkPolicy. For richer observability (per-flow logs, a policy map UI) consider Cilium as the CNI.

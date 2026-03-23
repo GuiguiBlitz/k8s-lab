@@ -13,6 +13,9 @@ spec:
     metadata:
       labels:
         app: redis-commander
+        role: ui
+        part-of: valkey-demo
+        tier: frontend
     spec:
       containers:
         - name: redis-commander
