@@ -10,23 +10,19 @@ A personal Kubernetes lab environment for experimenting with cloud-native toolin
 
 - **Distro:** k0s (single-node, controller+worker in one process)
 - **kubeconfig:** `~/.kube/config` (generated via `sudo k0s kubeconfig admin`)
-- **Cluster init:** `make` — installs k0s binary, sets up controller, writes kubeconfig
+- **Cluster init:** manual steps in README Step 2 — install k0s, start controller, configure kubectl
 - **Proxy note:** The kubeconfig server address may need to be manually changed to `localhost` if behind a proxy
 
 ## Cluster-wide prerequisites (installed once)
 
 | Component | How | Notes |
 |---|---|---|
-| local-path-provisioner | `make install-storage` | Provides `local-path` StorageClass, set as default |
-| Envoy Gateway v1.7.1 | `make install-envoy-gateway` | Installs into `envoy-gateway-system`, applies `cluster/` |
+| local-path-provisioner | `kubectl apply` (URL) | Provides `local-path` StorageClass, set as default |
+| Envoy Gateway v1.7.1 | `helm install` + `kubectl apply -f cluster/` | Installs into `envoy-gateway-system`, creates `eg` GatewayClass |
 
-## Makefile philosophy
+## Makefile
 
-The `makefile` only contains:
-1. Cluster bootstrap targets (`make`, `make install-storage`, `make install-envoy-gateway`)
-2. Nothing else — demo installs are done with plain `kubectl` / `helm` commands documented in the README
-
-Do NOT add demo install targets to the makefile. The README is the student guide.
+There is no makefile. All setup steps are plain shell commands documented in the README. This is intentional — students follow the README step by step.
 
 ## Gateway API conventions
 
@@ -41,22 +37,25 @@ Do NOT add demo install targets to the makefile. The README is the student guide
 
 ```
 k8s-lab/
-├── makefile              # Cluster bootstrap only
-├── README.md             # Student step-by-step guide
+├── README.md             # Student step-by-step guide (source of truth for all commands)
 ├── AGENTS.md             # This file
-├── cluster/              # Cluster-scoped resources (applied by make install-envoy-gateway)
+├── cluster/              # Cluster-scoped resources (applied during setup)
 │   └── gatewayclass.yaml # GatewayClass "eg"
 ├── valkey-demo/          # Demo 1: Valkey + Redis Commander
 │   ├── 00-namespace.yaml
 │   ├── valkey.yaml
 │   ├── app.yaml
-│   └── gateway.yaml
+│   ├── gateway.yaml
+│   └── labs/
+│       └── netpol.yaml   # Applied in Lab 4 only
 └── gitlab/               # Demo 2: GitLab CE + PostgreSQL + Adminer
     ├── 00-namespace.yaml
     ├── postgres.yaml
     ├── adminer.yaml
-    ├── gitlab-values.yaml  # Helm values, not a kubectl-apply file
-    └── gateway.yaml
+    ├── gateway.yaml
+    ├── gitlab-values.yaml          # Base Helm values
+    └── labs/
+        └── netpol-values.yaml      # Add-on values for Lab 3 (network policies)
 ```
 
 ## Demos

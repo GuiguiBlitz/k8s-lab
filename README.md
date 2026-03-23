@@ -13,25 +13,55 @@ Install brew:
 
 Install CLI tools:
 ```bash
-brew install kubectl helm cilium-cli kyverno fluxcd/tap/flux k9s
+brew install kubectl helm kyverno k9s
 ```
 
 ---
 
 ## Step 2 — Bootstrap the cluster
 
+### Install k0s
+
 ```bash
-make
+curl -sSf https://get.k0s.sh | sudo sh
+sudo k0s install controller --single
+sudo k0s start
 ```
 
-This single command:
-1. Installs the k0s binary
-2. Starts a single-node controller
-3. Writes `~/.kube/config`
-4. Installs the `local-path` StorageClass (needed for PVCs)
-5. Installs Envoy Gateway and creates the `eg` GatewayClass
+Wait for the node to be ready (takes ~60 seconds):
+```bash
+sudo k0s kubectl get nodes
+```
+
+### Configure kubectl
+
+```bash
+mkdir -p ~/.kube
+sudo k0s kubeconfig admin > ~/.kube/config
+chmod 600 ~/.kube/config
+kubectl get nodes
+```
 
 > **Behind a proxy?** Edit `~/.kube/config` and change the server IP to `localhost`.
+
+### Install the local-path StorageClass
+
+Required for any PersistentVolumeClaim (used by GitLab):
+```bash
+kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/v0.0.26/deploy/local-path-storage.yaml
+kubectl patch storageclass local-path \
+  -p '{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+```
+
+### Install Envoy Gateway and the GatewayClass
+
+```bash
+helm install eg oci://docker.io/envoyproxy/gateway-helm \
+  --version v1.7.1 \
+  -n envoy-gateway-system \
+  --create-namespace
+kubectl apply -f cluster/
+```
 
 Verify everything is ready:
 ```bash
@@ -322,3 +352,10 @@ kubectl get events -n valkey-demo -w
 ```
 
 > **Note:** Dropped packet visibility at the event level depends on the CNI. k0s ships with kube-router which enforces NetworkPolicy. For richer observability (per-flow logs, a policy map UI) consider Cilium as the CNI.
+
+
+**To tear down the cluster entirely:**
+```bash
+sudo k0s stop
+sudo k0s reset
+```
